@@ -310,8 +310,8 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 
 torch.set_float32_matmul_precision('high') # FP32 -> TF32
 
-# model = GPT.from_pretrained('gpt2')
-model = GPT(GPTConfig())
+model = GPT.from_pretrained('gpt2')
+# model = GPT(GPTConfig())
 model.to(device)
 # model = torch.compile(model) # always speed up. 
 

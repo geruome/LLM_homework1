@@ -1,4 +1,4 @@
-## BPE算法简述
+## Task1: Tokenization 
 
 BPE(Byte Pair Encode, 字节对编码)是一种用于文本分词的方法。它通过合并高频字符或子词的组合，逐步减少文本的分粒度。其从单个字符开始，逐渐合并为子词，最终形成一个高效的词汇表。
 
@@ -13,7 +13,7 @@ BPE依赖一个较大的语料集进行训练。训练大致流程为不断迭�
 
 解码具体token序列时，BPE将每个token对应的字符串拼接即可。
 
-## 基于BPE算法训练LLM tokenizer的流程
+#### 基于BPE算法训练LLM tokenizer的流程
 
 收集语料：收集一个庞大的文本数据集，作为tokenizer训练的基础数据源。该数据集应覆盖模型预期的应用领域。
 
@@ -26,7 +26,7 @@ BPE依赖一个较大的语料集进行训练。训练大致流程为不断迭�
 使用tokenizer编码数据：将原始语料数据通过训练好的tokenizer进行编码，编码为 interger list 类数据结构(numpy.array, torch.tensor)保存。这其实是对输入数据处理的第一步。
 
 
-## 算法实现
+#### 算法实现
 
 代码概况：
 ```
@@ -37,9 +37,9 @@ bpe/
 ├── run.py # 加载训练语料与测试相关代码
 ```
 
-首先参考 https://github.com/karpathy/minbpe，实现了基础的tokenizer. 见 BasicTokenizer方法。
+首先参考 https://github.com/karpathy/minbpe, 实现了基础的tokenizer. 见 BasicTokenizer方法。
 
-## plus: BPE算法复杂度改进
+#### plus: BPE算法复杂度改进
 但本人发现该算法朴素实现耗时较久。
 分析训练过程时间复杂度：记语料大小为 $n$, 本例中 manual.txt 语料转换为字节后长度为 1.74e5.    $vocab\_size = m$，本例中 $ m = 1024 $。
 核心复杂度相关代码为：
@@ -64,10 +64,10 @@ for i in range(num_merges):
 
 encode过程也可以类似修改。但通常需要encode的文本较短，没有必要。
 
-#### Answer: 
+#### 用它来encode再decode manual.txt，检查与原始manual.txt是否完全一致？ 
 encode 与 decode 后的结果与原文本完全一致，run中通过assert得以验证。
 
-#### Answer: 
+#### 学习使用huggingface transformers中的tokenizer，使用它加载GPT-2的tokenizer，然后使用它和你训练的tokenizer分别encode以下句子，比较两者的输出，简要解释长度上和具体token上不同的原因是什么。
 
 具体token结果过长不予展示，放在bpe/outfile/encode_res.out。
 长度如下表：
@@ -85,7 +85,7 @@ GPT2训练主要基于英文语料, 英文语料上的效果接近 5.33 byte/tok
 本BPE模型得到的英文结果中，token_id 几乎全在 0-255之间, 这是因为直接表示了单个字符，几乎没有单词、词根的提取。
 GPT2中，英文结果的 token_id 普遍比中文结果 token_id 小，说明英文token在训练语料中出现频率较高，符合预期。
 
-### Answer 1.2: 
+#### Answer 1.2: 
 
 一、Python中使用什么函数查看字符的Unicode，什么函数将Unicode转换成字符？并使用它们查看“北”“大”的Unicode，查看Unicode为22823、27169、22411对应的字符。
 ord(char) -> unicode, chr(unicode) -> char. 
@@ -122,13 +122,13 @@ LLM的训练通常不专注于数学计算和推理能力。以简单的加法�
 LLM需要tokenization这一步，并不是严格的直接接收输入文本产生输出。
 
 
-### GPT2 Implementation
+## Task2: GPT2 Implementation
 
 pretraining GPT2.
 github 仓库地址：https://github.com/geruome/bulid_gpt2
 
 commit 记录截图：
-![alt text](image-2.png)
+![alt text](imgs/image-2.png)
 
 - commit 说明
     - initial commit, add GPT skeleton. 
@@ -203,7 +203,7 @@ train 与 val loss 放在一张图中：
 可以看到在单轮训练的情况下，训练数据未重用，而val_loss的降低速度比train_loss较慢。
 可能是数据质量问题导致，或只是训练样本太少。
 可以看到 Hellaswag 验证集质量确实不错。
-比较平滑，很简单的模型随训练深入,acc也可以得到提升；
+eval_acc 比较平滑，很简单的模型随训练深入,acc也可以得到提升；
 也能在模型性能很差(图中的整个流程都在这个阶段)时提供早期的信号。
 ```
 some sentences results:
@@ -224,3 +224,215 @@ Hello, I'm a language model, the thing I've done is, the thing I've done is, the
 Hello, I'm a language model, and I'm thinking about the code. "My plans are to take that class and model it," he said
 -----------------
 ```
+
+
+## Task3: LoRA Fine-tuning
+
+train.sh 中关键参数说明：
+data_path：use_lora, True表示使用lora, false不使用
+lora_dim: rank r.
+data_path: ./data/alpaca_data.json. 下载好的 Alpaca 指令微调数据集, 涵盖一系列现实任务. token数大约 5e4.
+train_batch_size: 修改为 default = 16
+epochs: 修改为 default = 8
+
+#### 直接使用train.sh运行现有代码，进行全参数微调，并使用generate.sh生成回复。
+
+全参数微调时, use_lora 设为 False. 
+运行 ./train.sh, 最后 train_loss 和 eval_loss 曲线如下：
+![all text](imgs/full-size.png)
+(此时epoch为4)
+可以看到在4个epoch之内, train_loss几乎没有下降. train_loss只是在epoch间下降。
+这说明 full-size fine-tune 严重过拟合。这与微调用的alpaca数据集过小有关。
+eval_loss 更是在开始之后几乎没有下降，再次说明过拟合。
+
+./generate.sh 需要修改参数：
+use_lora, lora_dim, lora_scaling等要与 train.sh一致。
+全参数时, 加载本地模型, model_name_or_path 提供到 folder. transformers.AutoModelForCausalLM.from_pretrained() 会识别 folder 下的 model.safetensor 等加载本地预训练好的模型。
+lora时, model_name_or_path 还是 gpt2, lora_load_path 改为 result_folder/lora.pt 
+
+对话生成结果：
+![alt text](imgs/gen_fullsize.png)
+分析见之后。
+
+#### 把lora.py里面的TODO都补充完整，并在实验报告中讲解你的实现。
+
+```py
+class LoRALinear(torch.nn.Module):
+    def __init__(self, weight, bias, lora_dim, lora_scaling): # lora_dim: r
+        super(LoRALinear, self).__init__()
+        # Save original weight and bias
+        self.weight = torch.nn.Parameter(weight)
+        self.bias = torch.nn.Parameter(bias)
+        # TODO: Implement lora left and right weights
+        out_features, in_features = weight.shape
+        self.lora_right_weight = torch.nn.Parameter(torch.zeros((in_features, lora_dim))) # matrix A
+        self.lora_left_weight = torch.nn.Parameter(torch.zeros((lora_dim, out_features))) # matrix B
+        self.lora_scaling = lora_scaling / lora_dim
+        self.init_parameters()
+        self.weight.requires_grad = False
+        self.bias.requires_grad = False
+
+    def init_parameters(self):
+        nn.init.kaiming_uniform_(self.lora_right_weight, a=math.sqrt(5))
+        # nn.init.normal_(self.lora_right_weight, std=0.01)
+
+    def forward(self, input): # (16, 139, 768)
+        res = F.linear(input, self.weight, bias=self.bias)
+        lora_term = (input @ self.lora_right_weight) @ self.lora_left_weight * self.lora_scaling
+        res += lora_term
+        return res
+
+def only_optimize_lora_parameters(model):
+    for name, param in model.named_parameters():
+        param.requires_grad = "lora_right_weight" in name or "lora_left_weight" in name
+    return model
+
+def get_lora_state_dict(model):
+    # TODO: return lora left and right weights as state dict
+    lora_state_dict = {}
+    for name, param in model.named_parameters():
+        if "lora_right_weight" in name or "lora_left_weight" in name:
+            lora_state_dict[name] = param.data.clone()
+    return lora_state_dict
+```
+
+参考 [peft](https://github.com/huggingface/peft) 库的源码实现。
+
+所有 linear 层 forward 改为 $ W_0x + BAx $  
+$W_0$为原 linear 层权重。
+lora_right_weight：matrix A, shape=(in, rank). 采用Kaiming初始化, 控制每一层输入和输出的方差一致。
+lora_left_weight: matrix B, shape=(rank, out). 初始化为全0. 这样保证在训练刚开始时，输出和预训练模型相同。
+lora_scaling: 参考原论文公式 , 为 $\frac{lora\_scaling}{rank}$
+
+forward中, $B*A*X$计算时，注意是 $B*(Ax)$的计算方式。
+分析：计 x.shape = $B,T,in$
+$ O((BA)x) = in \times out \times r+BT \times in \times out = in \times out \times BT, BT>>r$ 
+$ O(B(Ax)) = BT \times in \times r+BT \times out \times r = (in+out) \times r \times BT$
+GPT2-124M 中, transformer中 (in,out) 约为 $(768, 768*(3 || 4))$ 级别. 则 $B(Ax)$ 计算复杂度低。
+
+only_optimize_lora_parameters中, 只将 A,B 矩阵的 requires_grad 设置为 True, 其余参数冻结。
+
+get_lora_state_dict中, 保存 A,B 矩阵参数即可。
+
+#### 使用train.sh进行LoRA微调，并使用generate.sh生成回复。测试LoRA rank为1，2，4，8，16，32时的效果，在实验报告中讨论。实现自己的画图函数，在一张图中展现不同rank的结果。
+
+注：train_loss、eval_loss曲线采用了平滑处理。
+画图相关代码见 multi_plot.py.
+
+一张图展现**不同rank下的结果**：
+train_loss ：
+![alt text](imgs/train_32.png)
+
+eval_loss ：
+![alt text](imgs/eval_32.png)
+
+可以看到, 当 rank 为 1,2,4,8时, finetune的欠拟合情况严重。rank越小，参数量越少，欠拟合越明显，符合预期。
+
+rank=32 时，模型的表达能力最强，有着更好的泛化性能。
+
+将 rank = 32的 train_loss, eval_loss 展现在一张图中：
+scaling = 32:
+![alt text](imgs/rk32.png)
+
+scaling = 16:
+![alt text](imgs/rk32_sca16.png)
+
+虽然 scaling = 32下, 模型的train_loss 与 eval_loss都更低 (下面展示), 但 scaling 较大时，lora参数权重对 模型表现影响大，微调过程中的过拟合情况更严重，训练后期 eval_loss 比 train_loss 明显更高。而 scaling = 16时过拟合现象不明想。
+
+研究 **rank = 32 下的参数选择**：
+B = 8, scaling = 32; B = 16, scaling = 32; B = 16, scaling = 16 
+三组结果对比示意如下：
+
+train_loss ：
+![alt text](imgs/train_32_params.png)
+
+eval_loss ：
+![alt text](imgs/eval_32_params.png)
+
+可以看到 B = 16, scaling = 32 时的训练效果最好。 train_loss 与 eval_loss 都领先。
+
+#### 比较原始预训练GPT-2，全参数微调的GPT-2，LoRA微调的GPT-2的回复，并讨论你的观察。
+
+原始GPT-2:
+![alt text](imgs/gen_origin.png)
+基本没有指令跟踪能力，不能理解对话要求。甚至多次重复输出 ASSISTANT.
+
+全参数微调：
+![alt text](imgs/gen_fullsize.png)
+过拟合情况十分严重。
+指令跟踪能力弱，不能正确理解答案条数。
+
+lora rank = 1:
+![alt text](imgs/gen_rk1.png)
+
+lora rank = 8:
+![alt text](imgs/gen_rk8.png)
+
+lora rank = 1,8 效果差不多. 
+指令跟踪能力稍强。对话一中可以理解答案条数。
+句子输出较为合理，连贯。
+
+lora rank = 32:
+![alt text](imgs/gen_rk32.png)
+指令跟踪效果不错。
+可以理解答案条数、作诗分行分段、理解 "describle your capabilities"、理解建议的内容.
+生成的语句大都合理、连贯。但仍有少许语法、语义错误。
+
+总体效果大约为：GPT-2 < fullsize < rank1 ≈ rank8 < rank32. 
+
+### Extended Analysis
+
+**训练速度与显存分析**
+|   | forward time(ms/batch) | backword time(ms/batch) | 显存占用(GB) |
+| --- | --- | --- | --- |
+| fullsize | 125 | 272 | 23.50 | 
+| rank=8  | 156 | 244 | 21.85 |
+| rank=16  | 155 | 244 | 21.77 |
+| rank=32  | 155 | 245 | 22.73 |
+| rank=64 | 154 | 251 | 20.60 |
+
+训练中，速度和显存主要受 forward, backward 两部分影响。
+(以下称lora中原模型部分为主干模型)
+forward过程中，lora执行主干模型部分的所有计算，同时执行lora部分参数的计算。
+后者相对于前者复杂度低很多: 参考前文描述
+$ O(wx) \approx O((BA)x) >> O(B(Ax))$
+表格中 forward time: fullsize 125 对比 lora 155, 符合预期。
+bacward中，lora无需计算主干模型参数的梯度、维持其在优化器的一阶二阶状态；而增加的lora部分对影响小。
+因此显存和 backword time 应该更低
+表格结果中 backward time 在 rank 低时几乎保持不变，符合预期。整体也比 fullsize 快。
+表格显存结果也符合预期。
+但显存分配可能受其他因素影响，导致不是递增关系。    
+这有待进一步研究。可能是某些大小下显存分配更合适。
+
+我的结果在 小模型GPT2-124M, 单张RTX 4090上得出，只是初步验证结论。
+实际在训练大大模型中，训练速度和显存显著降低的原因：
+无需存储优化器的状态和梯度；主干模型可进行低精度的量化；多卡训练时，只需要同步LoRA模型部分的梯度，减少卡间通信；等等。
+
+**$(w+BA)*x$ 与  $wx + B(Ax)$ 比较**
+
+我在实现 LoRALinear 时，起初采用：
+$(w+BA)*x$, 
+并非：
+$wx + B(Ax)$. 
+
+两者比较：
+rank = 32 为例：
+(W+BA)x 
+forward time: 132.220 ms
+backward time: 237.112 ms
+显存占用 22.69 G
+wx + B(Ax):
+forward time per batch: 153.906 ms
+backward time per batch: 245.607 ms
+显存占用 22.73 G
+
+该条件下 $(w+BA)*x$ 比 $wx + B(Ax)$ 前向、后向传播速度都快。
+ 
+官方实现中， LoRALinear的forward实现形式是后者。
+前者可以用于加载训练好的lora模型，相当于改变原模型权重，使得推理复杂度与原模型相同。
+
+不太懂其中的区别与取舍，为何选择前者。以下仅为一些个人猜测：
+$wx + B(Ax)$ 的可能优势：
+直接将 W + BA 相加，可能会导致显存额外占用，存储与原始 W 尺寸相同的矩阵。
+$wx$ 和 $B(Ax)$ 可以并行计算，适合 GPU 加速。瓶颈在 $wx$. 但前者瓶颈也在 $wx$.
+$wx + B(Ax)$的写法清晰直观，主干 + lora微调部分，更能体现 LoRA 插件化特点。
