@@ -95,10 +95,11 @@ def generate_response(model, tokenizer, instructions, device, output_dir):
     output_file = f"{output_dir}/response.txt"
     with open(output_file, "w") as f:
         for instruction in instructions:
-            prompt = PROMPT_INPUT.format(input=instruction)
-            inputs = tokenizer(prompt, return_tensors="pt")
+            prompt = PROMPT_INPUT.format(input=instruction) # 'BEGINNING OF CONVERSATION: USER: {input} ASSISTANT…'
+            inputs = tokenizer(prompt, return_tensors="pt") # {'input_ids': , 'attention_mask': 全1}
             inputs = {k: v.to(device) for k, v in inputs.items()}
-            output = model.generate(**inputs, temperature=0.7, top_p=0.92, top_k=0, max_length=100, do_sample=True)
+            # https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate
+            output = model.generate(**inputs, temperature=0.7, top_p=0.92, top_k=0, max_length=50, do_sample=True)
             f.write(tokenizer.decode(output[0], skip_special_tokens=True) + "\n\n")
 
 

@@ -2,11 +2,11 @@ python generate.py \
     --model_name_or_path gpt2 \
     --max_length 512 \
     --trust_remote_code True \
-    --use_lora False \
+    --use_lora True \
     --lora_dim 8 \
     --lora_scaling 32 \
     --lora_module_name h. \
-    --lora_load_path path-to-lora-checkpoint \
+    --lora_load_path results/_rk8/lora.pt \
     --seed 42 \
     --use_cuda False \
-    --output_dir_name gpt2-alpaca-eval
+    --output_dir_name _eval

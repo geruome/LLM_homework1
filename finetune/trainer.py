@@ -109,25 +109,34 @@ class Trainer:
         self.eval_loss.append(e_loss)
         log(self.log_file, f"eval loss: {e_loss:.4f} | dt: {(e_t1 - e_t0)*1000: .2f}ms")
         t0 = time.time()
+        forward_time = 0; backward_time = 0
         for epoch in range(self.args.epochs):
             for batch in self.train_dataloader:
                 step += 1
                 input_ids = batch['input_ids'].to(self.device)
                 labels = batch['labels'].to(self.device)
                 attention_mask = batch['attention_mask'].to(self.device)
+                torch.cuda.synchronize(); tmp_time = time.time()
                 outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                torch.cuda.synchronize(); forward_time += time.time() - tmp_time
                 loss = outputs.loss / self.args.gradient_accumulation_steps
                 loss_accum += loss.detach()
+                torch.cuda.synchronize(); tmp_time = time.time()
                 loss.backward()
+                torch.cuda.synchronize(); backward_time += time.time() - tmp_time
                 if step % self.args.gradient_accumulation_steps == 0:
                     update_step = step // self.args.gradient_accumulation_steps
                     lr = self.get_lr(step / self.args.gradient_accumulation_steps)
                     for param_group in self.optimizer.param_groups:
                         param_group['lr'] = lr
+                    torch.cuda.synchronize(); tmp_time = time.time()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
+                    torch.cuda.synchronize(); backward_time += time.time() - tmp_time
                     t1 = time.time()
                     dt = t1 - t0
+                    print(f"forward time per batch:{forward_time*1000/update_step:.3f} ms")
+                    print(f"backward time per batch:{backward_time*1000/update_step:.3f} ms")
                     log_str = f"epoch: {epoch + 1}/{self.args.epochs} | step: {update_step:5d}/{self.args.total_train_steps} | loss: {loss_accum.item():.4f} | lr: {lr:.4e} | dt: {dt*1000: .2f}ms"
                     log(self.log_file, log_str)
                     self.train_steps.append(update_step)

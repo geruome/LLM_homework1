@@ -9,6 +9,7 @@ import utils
 from torch.utils.data import Dataset, DataLoader
 
 from constants import *
+from pdb import set_trace as stx
 
 def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> Dict:
     """Tokenize a list of strings."""
@@ -111,6 +112,7 @@ def get_dataloader(tokenizer, data_path, train_batch_size, eval_batch_size, eval
     """Make dataloader for supervised fine-tuning."""
     train_dataset = SupervisedDataset(tokenizer=tokenizer, data_path=data_path, split="train", eval_ratio=eval_ratio)
     eval_dataset = SupervisedDataset(tokenizer=tokenizer, data_path=data_path, split="eval", eval_ratio=eval_ratio)
+    # print(len(train_dataset), len(eval_dataset), '-----'); # 5e4个token.
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     train_dataloader = DataLoader(train_dataset, collate_fn=data_collator, batch_size=train_batch_size, shuffle=True, drop_last=True)
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=eval_batch_size, shuffle=True, drop_last=True)
